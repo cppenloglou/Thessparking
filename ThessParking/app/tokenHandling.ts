@@ -23,8 +23,7 @@ export const storeToken = async (storage_key: string, token: string): Promise<vo
       await AsyncStorage.setItem(storage_key, encryptedToken);
       console.log("Token securely stored in AsyncStorage for web!");
     } else {
-      const encryptedToken = encryptToken(token);
-      await SecureStore.setItemAsync(storage_key, encryptedToken);
+      await SecureStore.setItemAsync(storage_key, token);
       console.log("Token securely stored in SecureStore for mobile!");
     }
   } catch (error) {
@@ -38,12 +37,11 @@ export const getToken = async (storage_key: string): Promise<string | null> => {
 
     if (Platform.OS === 'web') {
       encryptedToken = await AsyncStorage.getItem(storage_key);
+      if (encryptedToken !== null) {
+        return decryptToken(encryptedToken);
+      }
     } else {
-      encryptedToken = await SecureStore.getItemAsync(storage_key);
-    }
-
-    if (encryptedToken !== null) {
-      return decryptToken(encryptedToken);
+      return await SecureStore.getItemAsync(storage_key);
     }
 
     return null;
