@@ -10,7 +10,7 @@ export default function Index() {
   useEffect(() => {
     if (!isLoading) {
       if (isAuthenticated) {
-        router.replace("/(app)/home");
+        router.replace("/(app)/MapScreen");
       } else {
         router.replace("/(auth)/loginScreen");
       }
