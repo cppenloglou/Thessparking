@@ -16,9 +16,9 @@ export default function AppLayout() {
   return (
     <Stack>
       <Stack.Screen
-        name="home"
+        name="MapScreen"
         options={{
-          title: "Home",
+          title: "MapScreen",
           headerShown: false,
         }}
       />
