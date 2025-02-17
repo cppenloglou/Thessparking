@@ -4,14 +4,14 @@ import { useAuth } from "../context/AuthContext";
 import { useRouter } from "expo-router";
 
 export default function AppLayout() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !isLoading) {
       router.replace("/(auth)/loginScreen");
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isLoading]);
 
   return (
     <Stack>
@@ -19,7 +19,7 @@ export default function AppLayout() {
         name="home"
         options={{
           title: "Home",
-          headerShown: true,
+          headerShown: false,
         }}
       />
     </Stack>
