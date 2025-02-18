@@ -417,7 +417,13 @@ export default function MapScreen() {
                 >
                   <View style={styles.markerContainer}>
                     <Image
-                      source={require("../../assets/images/parking_small.png")}
+                      source={
+                        marker.status === "AVAILABLE"
+                          ? require("../../assets/images/parking_available.png")
+                          : marker.status === "MAYBE_UNAVAILABLE"
+                          ? require("../../assets/images/parking_maybe_unavailable.png")
+                          : require("../../assets/images/parking_maybe_not_valid.png")
+                      }
                       style={{ width: 32, height: 32 }}
                     />
                   </View>
