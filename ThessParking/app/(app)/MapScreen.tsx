@@ -6,9 +6,10 @@ import {
   Alert,
   Image,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { IconButton } from "react-native-paper";
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import * as Location from "expo-location";
@@ -17,16 +18,17 @@ import BottomDrawer from "../Components/BottomDrawer";
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import mapStyle from "../../assets/mapStyle.json";
+import { Stomp } from "@stomp/stompjs";
+import SockJS from "sockjs-client";
+import { getToken } from "../tokenHandling";
+import axios from "axios";
 
 // Define the type for a marker object
 type MarkerType = {
-  id: string;
   latitude: number;
   longitude: number;
   status: string;
-  notAvailableCount: number;
-  notValidCount: number;
-  user: string;
+  action: string;
 };
 
 export default function MapScreen() {
@@ -34,114 +36,73 @@ export default function MapScreen() {
 
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
   const [markers, setMarkers] = useState<MarkerType[]>([]);
-  const [region, setRegion] = useState<Region | undefined>(undefined); // ✅ Fixed null issue
+  const [isLoading, setIsLoading] = useState(true);
+  const [region, setRegion] = useState<Region>({
+    latitude: 40.6401,
+    longitude: 22.9444,
+    latitudeDelta: 0.04,
+    longitudeDelta: 0.04,
+  });
   const [isNearMarker, setIsNearMarker] = useState(false);
   const [selectedMarker, setSelectedMarker] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const mapCustomStyle = [
-    { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-    { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-    { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-    {
-      featureType: "administrative.locality",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#d59563" }],
-    },
-    {
-      featureType: "poi",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#d59563" }],
-    },
-    {
-      featureType: "poi.park",
-      elementType: "geometry",
-      stylers: [{ color: "#263c3f" }],
-    },
-    {
-      featureType: "poi.park",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#6b9a76" }],
-    },
-    {
-      featureType: "road",
-      elementType: "geometry",
-      stylers: [{ color: "#38414e" }],
-    },
-    {
-      featureType: "road",
-      elementType: "geometry.stroke",
-      stylers: [{ color: "#212a37" }],
-    },
-    {
-      featureType: "road",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#9ca5b3" }],
-    },
-    {
-      featureType: "road.highway",
-      elementType: "geometry",
-      stylers: [{ color: "#746855" }],
-    },
-    {
-      featureType: "road.highway",
-      elementType: "geometry.stroke",
-      stylers: [{ color: "#1f2835" }],
-    },
-    {
-      featureType: "road.highway",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#f3d19c" }],
-    },
-    {
-      featureType: "transit",
-      elementType: "geometry",
-      stylers: [{ color: "#2f3948" }],
-    },
-    {
-      featureType: "transit.station",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#d59563" }],
-    },
-    {
-      featureType: "water",
-      elementType: "geometry",
-      stylers: [{ color: "#17263c" }],
-    },
-    {
-      featureType: "water",
-      elementType: "labels.text.fill",
-      stylers: [{ color: "#515c6d" }],
-    },
-    {
-      featureType: "water",
-      elementType: "labels.text.stroke",
-      stylers: [{ color: "#17263c" }],
-    },
-  ];
-  // Request Location Permission & Get User Location
   useEffect(() => {
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Denied",
-          "Please enable location permissions in settings."
-        );
-        return;
-      }
-      setHasLocationPermission(true);
+      try {
+        setIsLoading(true);
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert(
+            "Permission Denied",
+            "Please enable location permissions in settings."
+          );
+          return;
+        }
+        setHasLocationPermission(true);
 
-      // Get user's current location
-      const location = await Location.getCurrentPositionAsync({});
-      setRegion({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.04, // More zoomed in
-        longitudeDelta: 0.04,
-      });
+        if (Platform.OS === "web") {
+          setIsLoading(false);
+          return;
+        } else {
+          // Get initial location with high accuracy
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          console.log("CURRENT LOCATION", location);
+
+          setRegion({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            latitudeDelta: 0.04,
+            longitudeDelta: 0.04,
+          });
+        }
+      } catch (error) {
+        console.error("Error getting location:", error);
+      } finally {
+        setIsLoading(false);
+      }
     })();
   }, []);
+
+  // // Request Location Permission & Get User Location
+  // useEffect(() => {
+  //   (async () => {
+  //     const { status } = await Location.requestForegroundPermissionsAsync();
+  //     if (status !== "granted") {
+  //       Alert.alert(
+  //         "Permission Denied",
+  //         "Please enable location permissions in settings."
+  //       );
+  //       return;
+  //     }
+  //     setHasLocationPermission(true);
+
+  //     // Get user's current location
+  //     await updateLocation();
+  //   })();
+  // }, []);
 
   useEffect(() => {
     if (isNearMarker) {
@@ -150,81 +111,126 @@ export default function MapScreen() {
   }, [isNearMarker]);
 
   useEffect(() => {
+    if (!hasLocationPermission) return;
+
     const updateUserLocation = async () => {
-      if (!hasLocationPermission) return;
-
-      const location = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = location.coords;
-
-      let isUserNear = false;
-
-      markers.forEach((marker) => {
-        const distance = getDistance(
-          latitude,
-          longitude,
-          marker.latitude,
-          marker.longitude
-        );
-        if (distance <= 0.002) {
-          // ✅ 2 meters threshold (converted to km)
-          isUserNear = true;
+      try {
+        if (Platform.OS === "web") {
+          return; // Don't update location on web
         }
-      });
 
-      if (isUserNear) {
-        findClosestPoint(latitude, longitude);
-        setIsDrawerOpen(true); // 🔹 Open the drawer when near a marker
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced, // Use balanced accuracy for updates
+        });
+
+        setRegion((prev) => {
+          // Only update if position has changed significantly
+          if (
+            !prev ||
+            Math.abs(prev.latitude - location.coords.latitude) > 0.0001 ||
+            Math.abs(prev.longitude - location.coords.longitude) > 0.0001
+          ) {
+            return {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+              latitudeDelta: 0.04,
+              longitudeDelta: 0.04,
+            };
+          }
+          return prev;
+        });
+
+        // Check for nearby markers
+        let isUserNear = false;
+        markers.forEach((marker) => {
+          const distance = getDistance(
+            location.coords.latitude,
+            location.coords.longitude,
+            marker.latitude,
+            marker.longitude
+          );
+          if (distance <= 0.004) {
+            isUserNear = true;
+            findClosestPoint(
+              location.coords.latitude,
+              location.coords.longitude
+            );
+          }
+        });
+
+        setIsNearMarker(isUserNear);
+        if (isUserNear) {
+          setIsDrawerOpen(true);
+        }
+      } catch (error) {
+        console.error("Error updating location:", error);
       }
-
-      setIsNearMarker(isUserNear);
     };
 
-    // Run initially and then every 800ms
-    updateUserLocation();
     const interval = setInterval(updateUserLocation, 800);
-
     return () => clearInterval(interval);
-  }, [markers, hasLocationPermission]); // 🔹 Re-run when markers change
+  }, [markers, hasLocationPermission]);
 
-  // 🔥 Listen for real-time inserts, deletes, and updates from Firestore
-  // useEffect(() => {
-  //   const unsubscribe = onSnapshot(collection(FIRESTORE_DB, 'Points'), (querySnapshot) => {
-  //     querySnapshot.docChanges().forEach((change: DocumentChange) => {
-  //       const doc = change.doc;
-  //       const newMarker: MarkerType = {
-  //         id: doc.id,
-  //         latitude: doc.data().coordinates.latitude,
-  //         longitude: doc.data().coordinates.longitude,
-  //         status: doc.data().status,
-  //         notAvailableCount: doc.data().notAvailableCount,
-  //         notValidCount: doc.data().notValidCount,
-  //         user: doc.data().user
-  //       };
+  let stompClient: any = null;
+  let markersList: any[] = [];
+  let bearerToken: string | null | undefined;
 
-  //       setMarkers(prevMarkers => {
-  //         if (change.type === 'added') {
-  //           return [...prevMarkers, newMarker]; // 🔹 Insert new marker
-  //         } else if (change.type === 'modified') {
-  //           return prevMarkers.map(marker => marker.id === doc.id ? newMarker : marker); // 🔹 Update marker
-  //         } else if (change.type === 'removed') {
-  //           return prevMarkers.filter(marker => marker.id !== doc.id); // 🔹 Delete marker
-  //         }
-  //         return prevMarkers;
-  //       });
-  //     });
-  //   });
+  const connect = async () => {
+    console.log("Connecting to WebSocket with Bearer token...");
+    const socket = new SockJS(`${process.env.EXPO_PUBLIC_API}ws`);
+    stompClient = Stomp.over(socket);
+    bearerToken = await getToken("accessToken");
+    const headers = { Authorization: `Bearer ${bearerToken}` };
+    stompClient.connect(headers, onConnected, onError);
+  };
 
-  //   // Cleanup listener on unmount
-  //   return () => unsubscribe();
-  // }, []);
+  function onConnected(): void {
+    console.log("WebSocket connection established");
+    stompClient.subscribe("/topic/nearby-markers", onMarkersReceived);
+    stompClient.subscribe("/topic/markers", onMarkerUpdated);
+    requestNearbyMarkers();
+  }
 
-  // const handleSignOut = async () => {
-  //   try {
-  //     await FIREBASE_AUTH.signOut();
-  //   } catch (error) {
-  //     console.error("Error signing out:", error);
-  //   }
-  // };
+  function onError(error: any): void {
+    console.error("WebSocket connection failed:", error);
+  }
+
+  const requestNearbyMarkers = async () => {
+    if (region) {
+      const locationRequest = {
+        latitude: region.latitude,
+        longitude: region.longitude,
+      };
+
+      stompClient.send(
+        "/app/markers",
+        { Authorization: `Bearer ${bearerToken}` },
+        JSON.stringify(locationRequest)
+      );
+    }
+  };
+
+  function onMarkersReceived(message: any): void {
+    try {
+      markersList = JSON.parse(message.body);
+      setMarkers(markersList);
+    } catch (e) {
+      console.error("Error parsing markers:", e);
+    }
+  }
+
+  function onMarkerUpdated(message: any): void {
+    try {
+      JSON.parse(message.body);
+      requestNearbyMarkers();
+    } catch (e) {
+      console.error("Error parsing marker update:", e);
+    }
+  }
+
+  useEffect(() => {
+    connect();
+  }, []);
 
   // Function to handle reporting
   const handleReport = async (
@@ -234,37 +240,73 @@ export default function MapScreen() {
       Alert.alert("Error", "No marker selected!");
       return;
     } else {
-      // try {
-      //     const markerRef = doc(FIRESTORE_DB, "Points", (selectedMarker as MarkerType).id);
-      //     if (option === "notAvailable") {
-      //       await updateDoc(markerRef, { notAvailableCount: (selectedMarker as MarkerType).notAvailableCount + 1 });
-      //     } else if (option === "notValid") {
-      //       await updateDoc(markerRef, { notValidCount: (selectedMarker as MarkerType).notValidCount + 1 });
-      //     }
-      //     Alert.alert("Report Submitted", "Thank you for your feedback!");
-      //   } catch (error) {
-      //     console.error("Error reporting marker: ", error);
-      //     Alert.alert("Error", "Could not submit the report.");
-      //   }
+      try {
+        const reportRequest = {
+          latitude: (selectedMarker as MarkerType).latitude,
+          longitude: (selectedMarker as MarkerType).longitude,
+          reportType: "",
+        };
+
+        if (option === "notAvailable") {
+          reportRequest.reportType = "NOT_AVAILABLE";
+        } else if (option === "notValid") {
+          reportRequest.reportType = "NOT_VALID";
+        }
+
+        axios.post(
+          process.env.EXPO_PUBLIC_API + "api/v1/markers/report",
+          reportRequest,
+          {
+            headers: {
+              Authorization: `Bearer ${await getToken("accessToken")}`,
+            },
+          }
+        );
+        Alert.alert("Report Submitted", "Thank you for your feedback!");
+      } catch (error) {
+        console.error("Error reporting marker: ", error);
+        Alert.alert("Error", "Could not submit the report.");
+      }
     }
   };
 
   // Function to add a new marker
   const handleAddMarker = async () => {
     try {
-      const location = await Location.getCurrentPositionAsync({});
-      const newMarker = {
-        coordinates: {
+      let temp_reg;
+      if (Platform.OS === "web") {
+        temp_reg = {
+          latitude: 13,
+          longitude: 14,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        };
+        setRegion(temp_reg);
+      } else {
+        const location = await Location.getCurrentPositionAsync({});
+        temp_reg = {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
-        }, // Example position
-        notAvailableCount: 0,
-        notValidCount: 0,
-        status: "active",
-        user: "testUser",
-      };
+          latitudeDelta: 0.04,
+          longitudeDelta: 0.04,
+        };
+        setRegion(temp_reg);
+      }
 
-      // await addDoc(collection(FIRESTORE_DB, 'Points'), newMarker);
+      axios.post(
+        process.env.EXPO_PUBLIC_API + "api/v1/markers/create",
+        {
+          latitude: temp_reg.latitude,
+          longitude: temp_reg.longitude,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${await getToken("accessToken")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
       Alert.alert("Success", "New marker added!");
     } catch (error) {
       console.error("Error adding marker: ", error);
@@ -314,22 +356,30 @@ export default function MapScreen() {
   // Function to claim (delete) the nearest marker
   const handleClaimMarker = async () => {
     try {
-      // Get user's current location
-      const location = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = location.coords;
-
       if (markers.length === 0) {
         Alert.alert("No markers available", "There are no markers to claim.");
         return;
       } else {
-        // if(selectedMarker)
-        //     await deleteDoc(doc(FIRESTORE_DB, "Points", (selectedMarker as MarkerType).id ));
+        if (selectedMarker) {
+          axios.post(
+            process.env.EXPO_PUBLIC_API + "api/v1/markers/claim",
+            {
+              latitude: (selectedMarker as MarkerType).latitude,
+              longitude: (selectedMarker as MarkerType).longitude,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${await getToken("accessToken")}`,
+              },
+            }
+          );
+          setIsDrawerOpen(false);
 
-        // // Remove it from local state
-        // setMarkers(prevMarkers => prevMarkers.filter(marker => marker.id !== (selectedMarker as unknown as MarkerType).id));
-        // setIsDrawerOpen(false);
-
-        Alert.alert("Marker Claimed!", "The closest marker has been deleted.");
+          Alert.alert(
+            "Marker Claimed!",
+            "The closest marker has been deleted."
+          );
+        }
       }
     } catch (error) {
       console.error("Error claiming marker: ", error);
@@ -337,17 +387,31 @@ export default function MapScreen() {
     }
   };
 
-  const mapProps = {
+  interface MapProps {
+    googleMapsApiKey: string;
+    style: object;
+    region?: Region;
+    showsUserLocation?: boolean;
+    userLocationUpdateInterval: number;
+    customMapStyle: any;
+    followsUserLocation: boolean;
+    provider: any;
+  }
+
+  const mapProps: MapProps = {
+    googleMapsApiKey: "",
     style: StyleSheet.absoluteFill,
     region: region,
     showsUserLocation: hasLocationPermission,
     userLocationUpdateInterval: 1000,
     customMapStyle: mapStyle,
     followsUserLocation: true,
+    provider: PROVIDER_GOOGLE,
   };
 
   if (Platform.OS === "web") {
-    mapProps.googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+    mapProps.googleMapsApiKey = process.env
+      .EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
     mapProps.provider = "google";
   } else {
     mapProps.provider = PROVIDER_GOOGLE;
@@ -357,31 +421,34 @@ export default function MapScreen() {
     <ActionSheetProvider>
       <GestureHandlerRootView style={styles.container}>
         <View style={StyleSheet.absoluteFill}>
-          <MapView {...mapProps}>
-            {markers.map((marker) => (
-              <Marker
-                key={`${marker.id}-${marker.status}`}
-                coordinate={{
-                  latitude: marker.latitude,
-                  longitude: marker.longitude,
-                }}
-                title={`Status: ${marker.status}`}
-                description={`Not Available: ${marker.notAvailableCount}, Not Valid: ${marker.notValidCount}`}
-                anchor={{ x: 0.5, y: 1 }} // Adjust the anchor to the bottom center of the image
-                calloutAnchor={{ x: 0.5, y: 0 }} // Adjust the callout anchor
-              >
-                <View style={styles.markerContainer}>
-                  <Image
-                    source={require("../../assets/images/parking_small.png")}
-                    style={{ width: 32, height: 32 }}
-                  />
-                </View>
-              </Marker>
-            ))}
-          </MapView>
-
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" />
+            </View>
+          ) : (
+            <MapView {...mapProps}>
+              {markers.map((marker) => (
+                <Marker
+                  key={`${marker.longitude}+${marker.latitude}`}
+                  coordinate={{
+                    latitude: marker.latitude,
+                    longitude: marker.longitude,
+                  }}
+                  title={`Status: ${marker.status}`}
+                  anchor={{ x: 0.5, y: 1 }} // Adjust the anchor to the bottom center of the image
+                  calloutAnchor={{ x: 0.5, y: 0 }} // Adjust the callout anchor
+                >
+                  <View style={styles.markerContainer}>
+                    <Image
+                      source={require("../../assets/images/parking_small.png")}
+                      style={{ width: 32, height: 32 }}
+                    />
+                  </View>
+                </Marker>
+              ))}
+            </MapView>
+          )}
           <CreatePointButton onPress={handleAddMarker} />
-          {/* <Button title="Sign Out" onPress={handleSignOut} /> */}
           <IconButton
             icon="logout"
             size={24}
@@ -418,5 +485,11 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     padding: 5,
     elevation: 3,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "white",
   },
 });

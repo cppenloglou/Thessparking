@@ -1,12 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
-import {
-  getToken,
-  storeToken,
-  removeToken,
-  storeRefreshToken,
-  removeRefreshToken,
-  getRefreshToken,
-} from "../tokenHandling";
+import { getToken, storeToken, removeToken } from "../tokenHandling";
 import axios from "axios";
 
 type AuthContextType = {
@@ -26,12 +19,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const initializeAuth = async () => {
     try {
       setIsLoading(true);
-      const refresh_token = await getRefreshToken();
+      const token = await getToken("accessToken");
 
-      if (refresh_token) {
-        axios.defaults.headers.common["Authorization"] = `Bearer ${getToken(
-          "accessToken"
-        )}`;
+      if (token) {
+        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
@@ -61,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { access_token, refresh_token } = response.data;
 
       await storeToken("accessToken", access_token);
-      await storeRefreshToken(refresh_token);
+      await storeToken("refreshToken", refresh_token);
 
       axios.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
       setIsAuthenticated(true);
@@ -85,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { access_token, refresh_token } = response.data;
 
       await storeToken("accessToken", access_token);
-      await storeRefreshToken(refresh_token);
+      await storeToken("refreshToken", refresh_token);
 
       axios.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
       setIsAuthenticated(true);
@@ -97,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       await removeToken("accessToken");
-      await removeRefreshToken();
+      await removeToken("refreshToken");
       delete axios.defaults.headers.common["Authorization"];
       setIsAuthenticated(false);
     } catch (error) {

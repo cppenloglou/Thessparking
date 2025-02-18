@@ -1,14 +1,27 @@
-import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
+import * as CryptoJS from 'crypto-js';
 
-let inMemoryToken: string | null = null;
+const ENCRYPTION_KEY = String(process.env.EXPO_PUBLIC_ENCRYPTION_KEY);
+
+const encryptToken = (token: string): string => {
+  const encrypted = CryptoJS.AES.encrypt(token, ENCRYPTION_KEY).toString();
+  return encrypted;
+};
+
+const decryptToken = (encryptedToken: string): string => {
+  const bytes = CryptoJS.AES.decrypt(encryptedToken, ENCRYPTION_KEY);
+  const decrypted = bytes.toString(CryptoJS.enc.Utf8); 
+  return decrypted;
+};
 
 export const storeToken = async (storage_key: string, token: string): Promise<void> => {
   try {
     if (Platform.OS === 'web') {
-      inMemoryToken = token;
-      console.log("Token securely stored in memory for web!");
+      const encryptedToken = encryptToken(token);
+      await AsyncStorage.setItem(storage_key, encryptedToken);
+      console.log("Token securely stored in AsyncStorage for web!");
     } else {
       await SecureStore.setItemAsync(storage_key, token);
       console.log("Token securely stored in SecureStore for mobile!");
@@ -18,112 +31,36 @@ export const storeToken = async (storage_key: string, token: string): Promise<vo
   }
 };
 
-export const getToken = async (storage_key: string): Promise<string | null | undefined> => {
+export const getToken = async (storage_key: string): Promise<string | null> => {
   try {
+    let encryptedToken: string | null = null;
+
     if (Platform.OS === 'web') {
-      if(!inMemoryToken) {
-        try {
-          await refreshToken();
-        } catch (finalError) {
-          console.error("Error refreshing token:", finalError);
-          return null;
-        } 
-      
-        return inMemoryToken
+      encryptedToken = await AsyncStorage.getItem(storage_key);
+      if (encryptedToken !== null) {
+        return decryptToken(encryptedToken);
       }
     } else {
       return await SecureStore.getItemAsync(storage_key);
     }
+
+    return null;
   } catch (error) {
     console.error("Error retrieving token:", error);
-    return null;  
+    return null;
   }
 };
 
 export const removeToken = async (storage_key: string): Promise<void> => {
   try {
     if (Platform.OS === 'web') {
-      inMemoryToken = null;
-      console.log("Token removed from memory for web!");
+      await AsyncStorage.removeItem(storage_key);
+      console.log("Token removed from AsyncStorage for web!");
     } else {
       await SecureStore.deleteItemAsync(storage_key);
       console.log("Token removed from SecureStore for mobile!");
     }
   } catch (error) {
     console.error("Error removing token:", error);
-  }
-};
-
-export const storeRefreshToken = (refreshToken: string): void => {
-  try {
-    if (Platform.OS === 'web') {
-      document.cookie = `refreshToken=${refreshToken}; path=/;`; 
-      console.log("Refresh token stored in cookie!");
-    } else {
-      SecureStore.setItem("refreshToken", refreshToken);
-      console.log("Refresh token stored in SecureStore for mobile!");
-    }
-  } catch (error) {
-    console.error("Error storing refresh token in cookie:", error);
-  }
-  
-};
-
-export const getRefreshToken = async (): Promise<string | null> => {
-  try {
-    if(Platform.OS === 'web'){
-      const cookies = document.cookie.split('; ');
-      for (let cookie of cookies) {
-        const [name, value] = cookie.split('=');
-        if (name === 'refreshToken') {
-          return value;
-        }
-      }
-      return null;
-    } else {
-      return await SecureStore.getItemAsync("refreshToken");
-    }
-  } catch (error) {
-    console.error("Error retrieving refresh token from cookie:", error);
-    return null;
-  }
-};
-
-export const removeRefreshToken = async (): Promise<void> => {
-  try {
-    if(Platform.OS === 'web'){
-    document.cookie = "refreshToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    console.log("Refresh token removed from cookie!");
-  } else {
-    await SecureStore.deleteItemAsync("refreshToken");
-    console.log("Refresh token removed from SecureStore for mobile!");
-  }
-  } catch (error) {
-    console.error("Error removing refresh token from cookie:", error);
-  }
-};
-
-export const refreshToken = async (): Promise<void> => {
-  try {
-    const refreshedToken = await getRefreshToken();
-    if (!refreshedToken) {
-      console.error("No refresh token available");
-      return;
-    }
- 
-    const res = await axios.post(
-      process.env.EXPO_PUBLIC_API + "api/v1/auth/refresh-token", 
-      {},
-      {
-        headers: {
-          'Authorization': `Bearer ${refreshedToken}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      }
-    );
-    console.log("EDO", res.data);
-    storeToken("accessToken",res.data.access_token);
-  } catch (error) {
-    console.error("Error refreshing token:", error);
   }
 };
