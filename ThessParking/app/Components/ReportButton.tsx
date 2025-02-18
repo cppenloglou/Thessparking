@@ -7,11 +7,19 @@ interface ReportButtonProps {
   closeDrawer: () => void;
 }
 
-export default function ReportButton({ onReport, closeDrawer }: ReportButtonProps) {
+export default function ReportButton({
+  onReport,
+  closeDrawer,
+}: ReportButtonProps) {
   const { showActionSheetWithOptions } = useActionSheet();
 
   const showReportMenu = () => {
-    const options = ["Cancel", "Parking Not Available", "Parking Spot Not Valid", "Other"];
+    const options = [
+      "Cancel",
+      "Parking Not Available",
+      "Parking Spot Not Valid",
+      "Other",
+    ];
     const cancelButtonIndex = 0;
 
     showActionSheetWithOptions(
@@ -27,7 +35,7 @@ export default function ReportButton({ onReport, closeDrawer }: ReportButtonProp
   const handleReportButton = () => {
     closeDrawer();
     showReportMenu();
-  }
+  };
 
   return (
     <View style={{ position: "absolute", bottom: 100, right: 20 }}>
@@ -40,8 +48,8 @@ export default function ReportButton({ onReport, closeDrawer }: ReportButtonProp
 
 const styles = StyleSheet.create({
   reportButton: {
-    fontSize: 20, 
-    color: "#e98d58", 
-    fontWeight: "bold", 
-  }
+    fontSize: 20,
+    color: "#e98d58",
+    fontWeight: "bold",
+  },
 });

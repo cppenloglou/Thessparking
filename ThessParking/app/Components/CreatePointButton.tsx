@@ -1,5 +1,5 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import React from "react";
+import { TouchableOpacity, Text, StyleSheet } from "react-native";
 
 type Props = {
   onPress: () => void;
@@ -15,20 +15,20 @@ export default function CreatePointButton({ onPress }: Props) {
 
 const styles = StyleSheet.create({
   button: {
-    position: 'absolute',
-    bottom: '7%',
-    alignSelf: 'center', // Centers horizontally
-    backgroundColor: '#53a623',
-    width: '75%',
+    position: "absolute",
+    bottom: "7%",
+    alignSelf: "center", // Centers horizontally
+    backgroundColor: "#53a623",
+    width: "75%",
     paddingVertical: 20,
     paddingHorizontal: 20,
     borderRadius: 40,
     elevation: 5,
   },
   text: {
-    alignSelf: 'center',
-    color: '#faf3e6',
+    alignSelf: "center",
+    color: "#faf3e6",
     fontSize: 25,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
 });

@@ -2,7 +2,6 @@ package gr.tiropita.thessparking_api.marker;
 
 import gr.tiropita.thessparking_api.user.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.actuate.web.mappings.MappingsEndpoint;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -14,10 +13,14 @@ import java.util.stream.Collectors;
 public class MarkerService {
     private final MarkerRepository markerRepository;
     private final UserRepository userRepository;
-    private final MappingsEndpoint mappingsEndpoint;
 
     public MarkerResponse createMarker(MarkerRequest markerRequest) {
         try {
+            if (markerRepository.findMarkerByLatitudeAndLongitude(markerRequest.getLatitude(),
+                    markerRequest.getLongitude()) instanceof Marker) {
+                throw new Exception();
+            }
+
             var createdByUser = userRepository.findByValidToken(markerRequest.getToken());
 
             var marker = Marker.builder()
@@ -69,42 +72,41 @@ public class MarkerService {
             var marker = markerRepository
                     .findMarkerByLatitudeAndLongitude(reportRequest.getLatitude(), reportRequest.getLongitude());
 
-
             var createdByUser = marker.getUser();
             int valid_points = createdByUser.getValidSpotPoints();
-            if(valid_points >= 200) {
-                createdByUser.setValidSpotPoints(valid_points-200);
+            if (valid_points >= 200) {
+                createdByUser.setValidSpotPoints(valid_points - 200);
             } else {
                 createdByUser.setValidSpotPoints(0);
             }
 
             userRepository.save(createdByUser);
 
-            if(reportRequest.getReportType().equals("NOT_VALID")) {
+            if (reportRequest.getReportType().equals("NOT_VALID")) {
                 int not_valid_count = marker.getNotValidCount();
 
-                if(not_valid_count+1 == 10) {
+                if (not_valid_count + 1 == 10) {
                     marker.setNotValidCount(10);
                     marker.setStatus(MarkerStatus.MAYBE_NOT_VALID);
-                } else if(not_valid_count+1 == 15) {
+                } else if (not_valid_count + 1 == 15) {
                     marker.setNotValidCount(15);
                     markerRepository.delete(marker);
                     return getMarkerResponse(marker, "Successfully deleted", "DELETE");
                 } else {
-                    marker.setNotValidCount(not_valid_count+1);
+                    marker.setNotValidCount(not_valid_count + 1);
                 }
-            } else if(reportRequest.getReportType().equals("NOT_AVAILABLE")) {
+            } else if (reportRequest.getReportType().equals("NOT_AVAILABLE")) {
                 int not_available_count = marker.getNotAvailableCount();
 
-                if(not_available_count+1 == 10) {
+                if (not_available_count + 1 == 10) {
                     marker.setNotAvailableCount(10);
                     marker.setStatus(MarkerStatus.MAYBE_UNAVAILABLE);
-                } else if(not_available_count+1 == 15) {
+                } else if (not_available_count + 1 == 15) {
                     marker.setNotAvailableCount(15);
                     markerRepository.delete(marker);
                     return getMarkerResponse(marker, "Successfully deleted", "DELETE");
                 } else {
-                    marker.setNotAvailableCount(not_available_count+1);
+                    marker.setNotAvailableCount(not_available_count + 1);
                 }
             }
 
@@ -148,6 +150,5 @@ public class MarkerService {
                 .comments(comments)
                 .build();
     }
-
 
 }

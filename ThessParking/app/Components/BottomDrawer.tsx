@@ -1,7 +1,10 @@
 import React, { useRef, useMemo, useEffect } from "react";
 import { Text, StyleSheet } from "react-native";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
-import { ActionSheetProvider, useActionSheet } from "@expo/react-native-action-sheet";
+import {
+  ActionSheetProvider,
+  useActionSheet,
+} from "@expo/react-native-action-sheet";
 
 interface BottomDrawerProps {
   isVisible: boolean;
@@ -10,7 +13,12 @@ interface BottomDrawerProps {
   onReport: (option: "notAvailable" | "notValid" | "other") => void;
 }
 
-export default function BottomDrawer({ isVisible, onClose, onClaim, onReport }: BottomDrawerProps) {
+export default function BottomDrawer({
+  isVisible,
+  onClose,
+  onClaim,
+  onReport,
+}: BottomDrawerProps) {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["5%", "30%"], []);
   const { showActionSheetWithOptions } = useActionSheet();
@@ -25,7 +33,12 @@ export default function BottomDrawer({ isVisible, onClose, onClaim, onReport }: 
   }, [isVisible]);
 
   const showReportMenu = () => {
-    const options = ["Cancel", "Parking Not Available", "Parking Spot Not Valid", "Other"];
+    const options = [
+      "Cancel",
+      "Parking Not Available",
+      "Parking Spot Not Valid",
+      "Other",
+    ];
     const cancelButtonIndex = 0;
 
     showActionSheetWithOptions(
@@ -63,7 +76,7 @@ export default function BottomDrawer({ isVisible, onClose, onClaim, onReport }: 
         </BottomSheetView>
       </BottomSheet>
     </ActionSheetProvider>
-  ): null;
+  ) : null;
 }
 
 const styles = StyleSheet.create({
@@ -86,7 +99,7 @@ const styles = StyleSheet.create({
     fontSize: 60,
     paddingHorizontal: 20,
     paddingBottom: 10,
-    shadowColor: 'black',
+    shadowColor: "black",
     shadowOpacity: 90,
     fontWeight: "bold",
     color: "#53a623",
@@ -105,6 +118,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   bottomSheet: {
-    backgroundColor: "#faf5e8"
-  }
+    backgroundColor: "#faf5e8",
+  },
 });

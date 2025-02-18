@@ -46,6 +46,7 @@ export default function MapScreen() {
   const [isNearMarker, setIsNearMarker] = useState(false);
   const [selectedMarker, setSelectedMarker] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isAddPressed, setIsAddPressed] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -61,48 +62,26 @@ export default function MapScreen() {
         }
         setHasLocationPermission(true);
 
-        if (Platform.OS === "web") {
-          setIsLoading(false);
-          return;
-        } else {
-          // Get initial location with high accuracy
-          const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
-          console.log("CURRENT LOCATION", location);
+        // Get initial location with high accuracy
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        console.log("CURRENT LOCATION", location);
 
-          setRegion({
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            latitudeDelta: 0.04,
-            longitudeDelta: 0.04,
-          });
-        }
+        setRegion({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.04,
+          longitudeDelta: 0.04,
+        });
       } catch (error) {
         console.error("Error getting location:", error);
       } finally {
         setIsLoading(false);
+        setIsAddPressed(false);
       }
     })();
   }, []);
-
-  // // Request Location Permission & Get User Location
-  // useEffect(() => {
-  //   (async () => {
-  //     const { status } = await Location.requestForegroundPermissionsAsync();
-  //     if (status !== "granted") {
-  //       Alert.alert(
-  //         "Permission Denied",
-  //         "Please enable location permissions in settings."
-  //       );
-  //       return;
-  //     }
-  //     setHasLocationPermission(true);
-
-  //     // Get user's current location
-  //     await updateLocation();
-  //   })();
-  // }, []);
 
   useEffect(() => {
     if (isNearMarker) {
@@ -115,12 +94,8 @@ export default function MapScreen() {
 
     const updateUserLocation = async () => {
       try {
-        if (Platform.OS === "web") {
-          return; // Don't update location on web
-        }
-
         const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced, // Use balanced accuracy for updates
+          accuracy: Location.Accuracy.High,
         });
 
         setRegion((prev) => {
@@ -159,9 +134,6 @@ export default function MapScreen() {
         });
 
         setIsNearMarker(isUserNear);
-        if (isUserNear) {
-          setIsDrawerOpen(true);
-        }
       } catch (error) {
         console.error("Error updating location:", error);
       }
@@ -196,18 +168,26 @@ export default function MapScreen() {
   }
 
   const requestNearbyMarkers = async () => {
-    if (region) {
-      const locationRequest = {
-        latitude: region.latitude,
-        longitude: region.longitude,
-      };
+    const location = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.High,
+    });
+    const temp_reg = {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      latitudeDelta: 0.04,
+      longitudeDelta: 0.04,
+    };
 
-      stompClient.send(
-        "/app/markers",
-        { Authorization: `Bearer ${bearerToken}` },
-        JSON.stringify(locationRequest)
-      );
-    }
+    const locationRequest = {
+      latitude: temp_reg.latitude,
+      longitude: temp_reg.longitude,
+    };
+
+    stompClient.send(
+      "/app/markers",
+      { Authorization: `Bearer ${bearerToken}` },
+      JSON.stringify(locationRequest)
+    );
   };
 
   function onMarkersReceived(message: any): void {
@@ -272,44 +252,41 @@ export default function MapScreen() {
 
   // Function to add a new marker
   const handleAddMarker = async () => {
-    try {
-      let temp_reg;
-      if (Platform.OS === "web") {
-        temp_reg = {
-          latitude: 13,
-          longitude: 14,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        };
-        setRegion(temp_reg);
-      } else {
-        const location = await Location.getCurrentPositionAsync({});
-        temp_reg = {
+    if (isAddPressed) return;
+    else {
+      setIsAddPressed(true);
+      try {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        const temp_reg = {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
           latitudeDelta: 0.04,
           longitudeDelta: 0.04,
         };
         setRegion(temp_reg);
-      }
 
-      axios.post(
-        process.env.EXPO_PUBLIC_API + "api/v1/markers/create",
-        {
-          latitude: temp_reg.latitude,
-          longitude: temp_reg.longitude,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${await getToken("accessToken")}`,
-            "Content-Type": "application/json",
+        console.log(temp_reg);
+        axios.post(
+          process.env.EXPO_PUBLIC_API + "api/v1/markers/create",
+          {
+            latitude: temp_reg.latitude,
+            longitude: temp_reg.longitude,
           },
-        }
-      );
+          {
+            headers: {
+              Authorization: `Bearer ${await getToken("accessToken")}`,
+            },
+          }
+        );
 
-      Alert.alert("Success", "New marker added!");
-    } catch (error) {
-      console.error("Error adding marker: ", error);
+        Alert.alert("Success", "New marker added!");
+      } catch (error) {
+        console.log("Duplicate marker!");
+      } finally {
+        setIsAddPressed(false);
+      }
     }
   };
 
@@ -336,7 +313,7 @@ export default function MapScreen() {
   const findClosestPoint = (latitude: number, longitude: number) => {
     // Find the closest marker
     let closestMarker: MarkerType | null = null;
-    let minDistance = Number.MAX_VALUE;
+    let minDistance = 0.004;
 
     markers.forEach((marker) => {
       const distance = getDistance(
