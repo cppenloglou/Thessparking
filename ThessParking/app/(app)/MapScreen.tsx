@@ -60,13 +60,15 @@ export default function MapScreen() {
     else {
       setIsAddPressed(true);
       try {
-        const response = await setUserLocation();
+        //Can't get user location in docker container using mock
+        // const response = await setUserLocation();
 
+        console.log("TEST");
         const res = await axios.post(
           process.env.EXPO_PUBLIC_API + "api/v1/markers/create",
           {
-            latitude: response.latitude,
-            longitude: response.longitude,
+            latitude: region.latitude,
+            longitude: region.longitude,
           },
           {
             headers: {
@@ -74,6 +76,8 @@ export default function MapScreen() {
             },
           }
         );
+
+        console.log("RES: ", res);
 
         if (res.data) {
           Alert.alert("Success", "New marker added!");
@@ -175,51 +179,89 @@ export default function MapScreen() {
   useEffect(() => {
     (async () => {
       try {
-        let notAccepted = true;
-        while (notAccepted) {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === "granted") {
-            notAccepted = false;
-          } else {
-            Alert.alert(
-              "Permission Denied",
-              "Please enable location permissions in settings."
-            );
-          }
-        }
+        // Mock permission because docker cannot access gps data from host device
+        const mockPermission = { status: "granted" };
+        if (mockPermission.status === "granted") {
+          // Mock user location (e.g., Thessaloniki coordinates)
+          setRegion({
+            latitude: region.latitude,
+            longitude: region.longitude,
+            latitudeDelta: 0.04,
+            longitudeDelta: 0.04,
+          });
 
-        await setUserLocation();
-        try {
-          // connect();
-          setInterval(async () => {
-            const response = await setUserLocation();
-            // requestNearbyMarkers();
-            const markersRes = await axios.post(
-              process.env.EXPO_PUBLIC_API + "api/v1/markers/getMarkers",
-              {
-                latitude: response.latitude,
-                longitude: response.longitude,
+          // Simulate fetching markers
+          const markersRes = await axios.post(
+            process.env.EXPO_PUBLIC_API + "api/v1/markers/getMarkers",
+            {
+              latitude: 40.6401,
+              longitude: 22.9444,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${await getToken("accessToken")}`,
               },
-              {
-                headers: {
-                  Authorization: `Bearer ${await getToken("accessToken")}`,
-                },
-              }
-            );
+            }
+          );
 
-            let markers = markersRes.data;
-            setMarkers(markers);
-          }, 10000);
-        } catch (error) {
-          return;
+          setMarkers(markersRes.data);
+          setIsLoading(false);
         }
-        setIsAddPressed(false);
-        setIsLoading(false);
       } catch (error) {
-        console.error("Error getting location:", error);
+        console.error("Error in useEffect:", error);
       }
     })();
   }, []);
+
+  // useEffect(() => {
+  //   (async () => {
+  //     try {
+  //       let notAccepted = true;
+  //       while (notAccepted) {
+  //         console.log("WAITING FOR LOCATION");
+  //         const { status } = await Location.requestForegroundPermissionsAsync();
+  //         if (status === "granted") {
+  //           notAccepted = false;
+  //         } else {
+  //           Alert.alert(
+  //             "Permission Denied",
+  //             "Please enable location permissions in settings."
+  //           );
+  //         }
+  //       }
+
+  //       await setUserLocation();
+  //       try {
+  //         // connect();
+  //         setInterval(async () => {
+  //           const response = await setUserLocation();
+  //           // requestNearbyMarkers();
+  //           const markersRes = await axios.post(
+  //             process.env.EXPO_PUBLIC_API + "api/v1/markers/getMarkers",
+  //             {
+  //               latitude: response.latitude,
+  //               longitude: response.longitude,
+  //             },
+  //             {
+  //               headers: {
+  //                 Authorization: `Bearer ${await getToken("accessToken")}`,
+  //               },
+  //             }
+  //           );
+
+  //           let markers = markersRes.data;
+  //           setMarkers(markers);
+  //         }, 10000);
+  //       } catch (error) {
+  //         return;
+  //       }
+  //       setIsAddPressed(false);
+  //       setIsLoading(false);
+  //     } catch (error) {
+  //       console.error("Error getting location:", error);
+  //     }
+  //   })();
+  // }, []);
 
   // Function to calculate the distance between two coordinates (Haversine formula)
   const getDistance = (
@@ -248,7 +290,7 @@ export default function MapScreen() {
         region.longitude,
         marker.latitude,
         marker.longitude
-      )
+      ) <= 0.004
     ) {
       setSelectedMarker(marker);
     }
@@ -288,7 +330,9 @@ export default function MapScreen() {
                     latitude: marker.latitude,
                     longitude: marker.longitude,
                   }}
-                  onPress={() => handleMarkerPress(marker)}
+                  onPress={() => {
+                    handleMarkerPress(marker);
+                  }}
                   title={`Status: ${marker.status}`}
                   anchor={{ x: 0.5, y: 1 }} // Adjust the anchor to the bottom center of the image
                   calloutAnchor={{ x: 0.5, y: 0 }} // Adjust the callout anchor

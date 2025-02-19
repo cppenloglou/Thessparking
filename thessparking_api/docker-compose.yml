@@ -25,5 +25,18 @@ services:
       - postgres
     restart: always
 
+  react-native:
+    build:
+      context: ../ThessParking
+    ports:
+      - "8081:8081"
+      - "19006:19006"
+      - "19000:19000"
+    volumes:
+      - ../ThessParking:/app
+    depends_on:
+      - springboot-api
+    restart: always
+
 volumes:
   postgres_data:
